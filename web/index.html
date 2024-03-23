@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://apps.bdimg.com/libs/jquerymobile/1.4.5/jquery.mobile-1.4.5.min.css">
+    <script src="https://apps.bdimg.com/libs/jquery/1.10.2/jquery.min.js"></script>
+    <script src="https://apps.bdimg.com/libs/jquerymobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
+    <title>Watering</title>
+    <style>
+        .ui-table-columntoggle-btn {
+            display: none;
+        }
+
+        .ui-block-a label {
+            font-size: 1.1rem;
+            margin-top: 0.7rem;
+            margin-right: 1rem;
+            text-align: right;
+        }
+
+        .ui-block-b label {
+            font-size: 1.1rem;
+            margin-top: 0.7rem;
+        }
+
+        .ui-block-a {
+            width: 30% !important;
+        }
+
+        .ui-block-b {
+            width: 50% !important;
+        }
+
+        .ui-block-c {
+            width: 20% !important;
+        }
+
+        .ui-input-text {
+            width: 50%;
+        }
+
+        .ui-block-c label {
+            font-size: 1.1rem;
+            margin-top: 0.7rem;
+        }
+    </style>
+    <script>
+        $(document).on("pagecreate", "#pageone", function () {
+            page_init();
+            get_data();
+        });
+
+        function page_init() {
+            $("#msg").on("popupafteropen", function () {
+                setTimeout(function () {
+                    $("#msg").popup("close");
+                }, 1000);
+            });
+        }
+
+        function msg(data) {
+            $("#msg_text").html(data);
+            $("#msg_box").click();
+        }
+
+        function timeToStr(time) {
+            if(time>59){
+                time=parseInt(time/60);
+                if(time>59){
+                    time=parseInt(time/60);
+                    if(time>24){
+                        time=parseInt(time/60);
+                        return time+"天";
+                    }else{
+                        return time+"小时";
+                    }
+                }else{
+                    return time+"分";
+                }
+            }else{
+                return time+"秒";
+            }
+        }
+
+
+        function get_data() {
+            $.get("data?_=" + Date.now(), function (data) {
+                if(typeof(data)=="string"){
+                    data=JSON.parse(data);
+                }
+                console.log(data);
+                var tm = parseInt(new Date().getTime() / 1000) - parseInt(data.state_last);
+                console.log("tm:" + tm);
+                $("#state_humi").html(data.state_humi + '%');
+                $("#state_last").html(timeToStr(tm)+"前");
+                $("#pump_flow").val(data.pump_flow).slider("refresh");
+                $("#pump_time").val(data.pump_time).slider("refresh");
+                $("#plan_humi").val(data.plan_humi).slider("refresh");
+                $("input[name='plan_mode'][value='" + data.plan_mode + "']").prop("checked", true).checkboxradio("refresh");
+                mode_change();
+                $("#plan_week").val(data.plan_week.split(',')).change();
+                $("#plan_time").val(data.plan_time.split(',')).change();
+                $("#plan_interval").val(data.plan_interval).slider("refresh");
+                $("#interval_unit").val(data.interval_unit).change();
+            });
+        }
+
+        function save() {
+            var url = "set?_=" + Date.now();
+            url += "&pump_flow=" + $("#pump_flow").val();
+            url += "&pump_time=" + $("#pump_time").val();
+            url += "&plan_mode=" + $("input[name='plan_mode']:checked").val();
+            url += "&plan_humi=" + $("#plan_humi").val();
+            url += "&plan_week=" + $("#plan_week").val();
+            url += "&plan_time=" + $("#plan_time").val();
+            url += "&plan_interval=" + $("#plan_interval").val();
+            url += "&interval_unit=" + $("#interval_unit").val();
+
+            $.get(url, function (data) {
+                console.log(data)
+                if (data.ret != 0) {
+                    msg(data.msg);
+                } else {
+                    msg("OK");
+                    get_data();
+                }
+            });
+        }
+
+        function run() {
+            $.get("run?_=" + Date.now(), function (data) {
+                console.log(data)
+                if (data.ret != 0) {
+                    msg(data.msg);
+                } else {
+                    msg("OK");
+                    get_data();
+                }
+            });
+        }
+
+        function mode_change() {
+            var mode = $("input[name='plan_mode']:checked").val();
+            for (var i = 0; i < 4; i++) {
+                $("#mode" + i + "_show").hide();
+            }
+            $("#mode" + mode + "_show").show();
+
+        }
+    </script>
+</head>
+
+<body>
+    <div data-role="page" id="pageone">
+        <div data-role="main" class="ui-content">
+            <h3>状态</h3>
+            <div class="ui-grid-b">
+                <div class="ui-block-a">
+                    <label>当前湿度:</label>
+                </div>
+                <div class="ui-block-b">
+                    <label id="state_humi">...</label>
+                </div>
+                <div class="ui-block-a">
+                    <label>上次浇水:</label>
+                </div>
+                <div class="ui-block-b">
+                    <label id="state_last">...</label>
+                </div>
+            </div>
+
+            <h3>水泵设置</h3>
+            <div class="ui-grid-b">
+                <div class="ui-block-a">
+                    <label>流量大小:</label>
+                </div>
+                <div class="ui-block-b">
+                    <input type="range" id="pump_flow" value="1" min="1" max="100" step="1">
+                </div>
+                <div class="ui-block-c">
+                    <label>%</label>
+                </div>
+                <div class="ui-block-a">
+                    <label>开启时间:</label>
+                </div>
+                <div class="ui-block-b">
+                    <input type="range" id="pump_time" value="1" min="1" max="60" step="1">
+                </div>
+                <div class="ui-block-c">
+                    <label>秒</label>
+                </div>
+            </div>
+            <h3>浇水计划</h3>
+            <div class="ui-grid-b">
+                <fieldset data-role="controlgroup" data-type="horizontal" onchange="mode_change()">
+                    <label for="mode0">关闭</label>
+                    <input type="radio" name="plan_mode" id="mode0" value="0">
+                    <label for="mode1">自动</label>
+                    <input type="radio" name="plan_mode" id="mode1" value="1">
+                    <label for="mode2">定时</label>
+                    <input type="radio" name="plan_mode" id="mode2" value="2">
+                    <label for="mode3">间隔</label>
+                    <input type="radio" name="plan_mode" id="mode3" value="3">
+                </fieldset>
+                <div id="mode1_show">
+                    <div class="ui-block-a">
+                        <label>湿度小于:</label>
+                    </div>
+                    <div class="ui-block-b">
+                        <input type="range" id="plan_humi" value="0" min="0" max="99" step="1">
+                    </div>
+                    <div class="ui-block-c">
+                        <label>%</label>
+                    </div>
+                </div>
+                <div id="mode2_show">
+                    <div class="ui-block-a">
+                        <label>每周:</label>
+                    </div>
+                    <div class="ui-block-b">
+                        <select id="plan_week" multiple="multiple" data-native-menu="false">
+                            <option value="1">星期一</option>
+                            <option value="2">星期二</option>
+                            <option value="3">星期三</option>
+                            <option value="4">星期四</option>
+                            <option value="5">星期五</option>
+                            <option value="6">星期六</option>
+                            <option value="0">星期日</option>
+                        </select>
+                    </div>
+                    <div class="ui-block-a">
+                        <label>时间:</label>
+                    </div>
+                    <div class="ui-block-b">
+                        <select id="plan_time" multiple="multiple" data-native-menu="false">
+                            <option value="0">00:00</option>
+                            <option value="1">01:00</option>
+                            <option value="2">02:00</option>
+                            <option value="3">03:00</option>
+                            <option value="4">04:00</option>
+                            <option value="5">05:00</option>
+                            <option value="6">06:00</option>
+                            <option value="7">07:00</option>
+                            <option value="8">08:00</option>
+                            <option value="9">09:00</option>
+                            <option value="10">10:00</option>
+                            <option value="11">11:00</option>
+                            <option value="12">12:00</option>
+                            <option value="13">13:00</option>
+                            <option value="14">14:00</option>
+                            <option value="15">15:00</option>
+                            <option value="16">16:00</option>
+                            <option value="17">17:00</option>
+                            <option value="18">18:00</option>
+                            <option value="19">19:00</option>
+                            <option value="20">20:00</option>
+                            <option value="21">21:00</option>
+                            <option value="22">22:00</option>
+                            <option value="23">23:00</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="mode3_show">
+                    <div class="ui-block-b">
+                        <input type="range" id="plan_interval" value="1" min="1" max="60" step="1">
+                    </div>
+                    <div class="ui-block-c" style="width: 30% !important">
+                        <select id="interval_unit">
+                            <option value="0">&nbsp;小时</option>
+                            <option value="1">&nbsp;天</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <h3>操作</h3>
+            <div class="ui-grid-b">
+                <div class="ui-block-a">
+                    <button class="ui-btn ui-btn-inline" onclick="run()">立即浇水</button>
+                </div>
+                <div class="ui-block-b">
+                    <button class="ui-btn ui-btn-inline" onclick="save()">提交设置</button>
+                </div>
+            </div>
+            <a href="#msg" data-rel="popup" id="msg_box" data-position-to="window"></a>
+            <div data-role="popup" id="msg">
+                <p id="msg_text"></p>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
