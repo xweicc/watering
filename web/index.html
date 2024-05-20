@@ -1,12 +1,11 @@
 <!DOCTYPE html>
 <html>
-
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="https://apps.bdimg.com/libs/jquerymobile/1.4.5/jquery.mobile-1.4.5.min.css">
-    <script src="https://apps.bdimg.com/libs/jquery/1.10.2/jquery.min.js"></script>
-    <script src="https://apps.bdimg.com/libs/jquerymobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
+    <link rel="stylesheet" href="jquery.mobile-1.4.5.min.css">
+    <script src="jquery.min.js"></script>
+    <script src="jquery.mobile-1.4.5.min.js"></script>
     <title>Watering</title>
     <style>
         .ui-table-columntoggle-btn {
@@ -25,20 +24,16 @@
             margin-top: 0.7rem;
         }
 
-        .ui-block-a {
+        div>.ui-block-a {
             width: 30% !important;
         }
 
-        .ui-block-b {
+        div>.ui-block-b {
             width: 50% !important;
         }
 
-        .ui-block-c {
+        div>.ui-block-c {
             width: 20% !important;
-        }
-
-        .ui-input-text {
-            width: 50%;
         }
 
         .ui-block-c label {
@@ -47,9 +42,11 @@
         }
     </style>
     <script>
+        var ch=0;
+        var init=0;
         $(document).on("pagecreate", "#pageone", function () {
             page_init();
-            get_data();
+            get_sys_data();
         });
 
         function page_init() {
@@ -71,7 +68,7 @@
                 if(time>59){
                     time=parseInt(time/60);
                     if(time>24){
-                        time=parseInt(time/60);
+                        time=parseInt(time/24);
                         return time+"天";
                     }else{
                         return time+"小时";
@@ -86,13 +83,15 @@
 
 
         function get_data() {
-            $.get("data?_=" + Date.now(), function (data) {
+            $.get("data?ch="+ch+"&_=" + Date.now(), function (data) {
                 if(typeof(data)=="string"){
                     data=JSON.parse(data);
                 }
                 console.log(data);
+
                 var tm = parseInt(new Date().getTime() / 1000) - parseInt(data.state_last);
                 console.log("tm:" + tm);
+                $("#name").val(data.name);
                 $("#state_humi").html(data.state_humi + '%');
                 $("#state_last").html(timeToStr(tm)+"前");
                 $("#pump_flow").val(data.pump_flow).slider("refresh");
@@ -107,8 +106,77 @@
             });
         }
 
+        function get_sys_data() {
+            $.get("sys_data?_=" + Date.now(), function (data) {
+                if(typeof(data)=="string"){
+                    data=JSON.parse(data);
+                }
+                console.log(data);
+
+                if(init==0){
+                    init=1;
+                    if(data.net_state!=0){
+                        $('#set_0').addClass('ui-btn-active');
+                        $('#set_0').click();
+                        return ;
+                    }else{
+                        $('#set_4').addClass('ui-btn-active');
+                        $('#set_4').click();
+                    }
+                }
+
+                $("#sys_time").html(data.sys_time);
+                $("#run_time").html(timeToStr(data.run_time));
+                $("#have_water").html(data.have_water==0?"缺水":"正常");
+                $("#net_state").html(netStateStr(data.net_state));
+                $("#ssid").val(data.ssid);
+                $("#pwd").val(data.pwd);
+            });
+        }
+
+        function netStateStr(state) {
+            if(state==0) {
+                return "未连接";
+            } else if(state==1) {
+                return "正在连接";
+            } else if(state==2) {
+                return "正在同步时间";
+            } else if(state==3) {
+                return "联网成功";
+            }
+        }
+
+        function sys_set() {
+            var url = "sys_set?_=" + Date.now();
+
+            var ssid=$("#ssid").val();
+            if(ssid.length==0){
+                msg("请输入SSID!");
+                return ;
+            }
+            url += "&ssid=" + ssid;
+
+            var pwd=$("#pwd").val();
+            if(pwd.length==0){
+                msg("请输入密码!");
+                return ;
+            }
+            url += "&pwd=" + pwd;
+
+            $.get(url, function (data) {
+                console.log(data)
+                if (data.ret != 0) {
+                    msg(data.msg);
+                } else {
+                    msg("OK");
+                    get_sys_data();
+                }
+            });
+        }
+
         function save() {
-            var url = "set?_=" + Date.now();
+            var url = "set?ch="+ch+"&_=" + Date.now();
+            url += "&name=" + $("#name").val();
             url += "&pump_flow=" + $("#pump_flow").val();
             url += "&pump_time=" + $("#pump_time").val();
             url += "&plan_mode=" + $("input[name='plan_mode']:checked").val();
@@ -130,7 +198,10 @@
         }
 
         function run() {
-            $.get("run?_=" + Date.now(), function (data) {
+            $.get("run?ch="+ch+"&_=" + Date.now(), function (data) {
+                if(typeof(data)=="string"){
+                    data=JSON.parse(data);
+                }
                 console.log(data)
                 if (data.ret != 0) {
                     msg(data.msg);
@@ -149,14 +220,34 @@
             $("#mode" + mode + "_show").show();
 
         }
+
+        function set(obj) {
+            var v=parseInt(obj.getAttribute("value"));
+            if(v<4){
+                ch=v;
+                $("#pump_set").show();
+                $("#sys_set").hide();
+                get_data();
+            }else{
+                $("#pump_set").hide();
+                $("#sys_set").show();
+                get_sys_data();
+            }
+        }
     </script>
 </head>
 
 <body>
     <div data-role="page" id="pageone">
-        <div data-role="main" class="ui-content">
+        <div data-role="main" class="ui-content" id="pump_set" style="display: none;">
             <h3>状态</h3>
             <div class="ui-grid-b">
+                <div class="ui-block-a">
+                    <label>名称:</label>
+                </div>
+                <div class="ui-block-b">
+                    <input type="text" id="name"></input>
+                </div>
                 <div class="ui-block-a">
                     <label>当前湿度:</label>
                 </div>
@@ -170,7 +261,6 @@
                     <label id="state_last">...</label>
                 </div>
             </div>
-
             <h3>水泵设置</h3>
             <div class="ui-grid-b">
                 <div class="ui-block-a">
@@ -277,18 +367,80 @@
             <h3>操作</h3>
             <div class="ui-grid-b">
                 <div class="ui-block-a">
-                    <button class="ui-btn ui-btn-inline" onclick="run()">立即浇水</button>
+                    <input type="button" data-inline="true" onclick="run()" value="立即浇水">
                 </div>
                 <div class="ui-block-b">
-                    <button class="ui-btn ui-btn-inline" onclick="save()">提交设置</button>
+                    <input type="button" data-inline="true" onclick="save()" value="提交设置">
                 </div>
             </div>
-            <a href="#msg" data-rel="popup" id="msg_box" data-position-to="window"></a>
-            <div data-role="popup" id="msg">
-                <p id="msg_text"></p>
+        </div>
+        <div data-role="main" class="ui-content" id="sys_set" style="display: none;">
+            <h3>系统状态</h3>
+            <div class="ui-grid-b">
+                <div class="ui-block-a">
+                    <label>系统时间:</label>
+                </div>
+                <div class="ui-block-b">
+                    <label id="sys_time">...</label>
+                </div>
+                <div class="ui-block-a">
+                    <label>运行时长:</label>
+                </div>
+                <div class="ui-block-b">
+                    <label id="run_time">...</label>
+                </div>
+                <div class="ui-block-a">
+                    <label>缺水指示:</label>
+                </div>
+                <div class="ui-block-b">
+                    <label id="have_water">...</label>
+                </div>
             </div>
+            <h3>连接WIFI</h3>
+            <div class="ui-grid-b">
+                <div class="ui-block-a">
+                    <label>状态:</label>
+                </div>
+                <div class="ui-block-b">
+                    <label id="net_state">...</label>
+                </div>
+                <div class="ui-block-a">
+                    <label>SSID:</label>
+                </div>
+                <div class="ui-block-b">
+                    <input type="text" id="ssid" style="width: 100%;"></input>
+                </div>
+                <div class="ui-block-a">
+                    <label>密码:</label>
+                </div>
+                <div class="ui-block-b">
+                    <input type="text" id="pwd"></input>
+                </div>
+            </div>
+            <div class="ui-grid-b">
+                <div class="ui-block-a">
+                </div>
+                <div class="ui-block-b">
+                    <input type="button" data-inline="true" onclick="sys_set()" value="提交设置">
+                </div>
+            </div>
+        </div>
+        <br>
+        <div data-role="footer" data-position="fixed">
+            <div data-role="navbar" style="margin-bottom:0">
+                <ul>
+                  <li style="width: 20%;"><a id="set_0" onclick="set(this)" value="0" data-icon="clock">水泵1</a></li>
+                  <li style="width: 20%;"><a id="set_1" onclick="set(this)" value="1" data-icon="clock">水泵2</a></li>
+                  <li style="width: 20%;"><a id="set_2" onclick="set(this)" value="2" data-icon="clock">水泵3</a></li>
+                  <li style="width: 20%;"><a id="set_3" onclick="set(this)" value="3" data-icon="clock">水泵4</a></li>
+                  <li style="width: 20%;"><a id="set_4" onclick="set(this)" value="4" data-icon="gear">设置</a></li>
+                </ul>
+            </div>
+        </div>
+        <a href="#msg" data-rel="popup" id="msg_box" data-position-to="window"></a>
+        <div data-role="popup" id="msg">
+            <p id="msg_text"></p>
         </div>
     </div>
 </body>
-
 </html>

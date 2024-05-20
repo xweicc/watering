@@ -15,6 +15,7 @@
 #include <nvs_flash.h>
 #include <esp_system.h>
 #include <lwip/sys.h>
+#include <esp_mac.h>
 #include <esp_wifi.h>
 #include <esp_http_server.h>
 #include <esp_tls_crypto.h>
@@ -27,6 +28,10 @@
 #include <esp_adc/adc_cali_scheme.h>
 #include <hal/gpio_types.h>
 #include <driver/gpio.h>
+#include <esp_efuse.h>
+#include <esp_efuse_table.h>
+
+#define ChannelMax 4
 
 #include "llist.h"
 #include "timer.h"
@@ -35,6 +40,8 @@
 #include "key.h"
 #include "wlan.h"
 #include "webfile.h"
+#include "oled.h"
+#include "font.h"
 
 #define Printf(format,args...) do{\
         printf("[%s:%d]:"format,__ASSERT_FUNC,__LINE__,##args);\
@@ -48,7 +55,16 @@
 	}\
 	}while(0)
 
+enum{
+    LedStateConnecting,
+    LedStateWaitNtp,
+    LedStateOK,
+};
+
+typedef void(*view_show)(void);
+
 typedef struct {
+    char name[32];
     __u8 pump_flow;
     __u8 pump_time;
     __u8 plan_mode;
@@ -61,14 +77,12 @@ typedef struct {
     
     __u32 plan_time;
     __u32 last_time;
-    __u32 reserve[1];
 }store_t;
 
-enum{
-    LedStateConnecting,
-    LedStateWaitNtp,
-    LedStateOK,
-};
+typedef struct {
+	char ssid[32];
+	char pwd[32];
+}wlan_t;
 
 typedef struct {
     motor_var_t motor;
@@ -78,23 +92,30 @@ typedef struct {
     struct list_head gotIpHead;
     EventGroupHandle_t wifiEventGroup;
 	esp_netif_t *netif;
-	char hostname[32];
-	char ssid[32];
-	char pwd[64];
-	__u8 bssid[6];
-    int led_state;
+    int net_state;
+    __u32 sysTimeRun;
+    __u32 ip;
+    int sleep;
+    view_show view;
+    wlan_t wlan;
     httpd_handle_t server;
-    store_t store;
+    store_t store[ChannelMax];
     struct timer_list plan_timer;
-} watering_var_t;
+    struct timer_list view_timer;
+    struct timer_list sleep_timer;
+} watering_t;
 
-extern watering_var_t wvar;
+extern watering_t w;
 
 void http_init(void);
 void plan_init(void);
 void save(void);
 int sensor_init(void);
-int get_humi(void);
+int get_humi(int ch);
+int have_water(void);
+__u32 getRunTime(void);
+int nvram_set_data(char *name, void *data, int len);
+int nvram_unset(char *name);
 
 #endif
 

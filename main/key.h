@@ -4,6 +4,7 @@
 #define keyDelayTime 50	    //消抖时间
 #define keyCheckTime 10     //检测间隔
 #define keyLongTime 500    //长按时间
+#define keyLongerTime 3000  //更长按时间
 
 enum{
     keyIoSet=9,
@@ -19,22 +20,21 @@ enum{
 	keyStateDowning,
 	keyStateDowned,
 	keyStateDownedLong,
+	keyStateDownedLonger,
 	keyStateUping,
 };
 
 enum{
     keySetShort,
     keySetLong,
-    keyLeftShort,
-    keyLeftLong,
-    keyRightShort,
-    keyRightLong,
+    keySetLonger,
 };
 
 enum{
     keyEventNone,
     keyEventShort,  //短按
     keyEventLong,   //长按
+    keyEventLonger, //更长按
 };
 
 typedef void (*key_fun_t)(int);

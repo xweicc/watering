@@ -42,7 +42,9 @@ typedef unsigned char __u8;
 #define Snprintf(buff,size,fmt,args...) ({int __ret__; __ret__=snprintf((buff),(size),fmt,##args);__ret__<(size)?__ret__:(size)-1;})
 
 __u32 getSysTime(void);
+char *getTimeStr(void);
 int split_string(char *str, char c, char **argv, int max);
+void urlDecode(char *src, char *dest);
 
 static inline char *ipstr(__u32 ip)
 {

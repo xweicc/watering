@@ -6,7 +6,7 @@ adc_oneshot_unit_handle_t adc1_handle;
 #define VoltMax 1000
 #define VoltMin 100
 
-int get_humi(void)
+int get_humi(int ch)
 {
     int adc_raw[10]={0};
     int max_idx=0,min_idx=0;
@@ -14,7 +14,7 @@ int get_humi(void)
     int voltage;
 
     for(int c=0;c<10;c++){
-        esp_err_t ret=adc_oneshot_read(adc1_handle, ADC_CHANNEL_0, &adc_raw[c]);
+        esp_err_t ret=adc_oneshot_read(adc1_handle, ch, &adc_raw[c]);
         if(ret){
             Printf("adc_oneshot_read error\n");
             return -1;
@@ -44,7 +44,7 @@ int get_humi(void)
         return -1;
     }
 
-    Printf("voltage:%d\n",voltage);
+    Printf("ch:%d voltage:%d\n",ch,voltage);
     if(voltage>VoltMax){
         voltage=VoltMax;
     }
@@ -106,6 +106,15 @@ static bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_cali_ha
     return calibrated;
 }
 
+int have_water(void)
+{
+    if(gpio_get_level(10)==0){
+        return 1;
+    }else{
+        return 0;
+    }
+}
+
 int sensor_init(void)
 {
     adc_oneshot_unit_init_cfg_t init_config1 = {
@@ -118,8 +127,16 @@ int sensor_init(void)
         .atten = ADC_ATTEN_DB_11,
     };
     ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_0, &config));
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_1, &config));
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_2, &config));
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_3, &config));
 
     adc_calibration_init(ADC_UNIT_1, ADC_ATTEN_DB_11, &adc1_cali_handle);
+
+    gpio_config_t io_conf = {};
+    io_conf.pin_bit_mask = (1ULL<<10);
+    io_conf.mode = GPIO_MODE_INPUT;
+    gpio_config(&io_conf);
 
     return 0;
 }

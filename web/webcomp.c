@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <zlib.h>
 
 int  webcomp_fsize(const char *path)
 {
@@ -25,6 +26,50 @@ int webcomp_fread(const char *path, void *buffer, int max)
 	n = read(f, buffer, max);
 	close(f);
 	return n;
+}
+
+int compress_data(unsigned char *source_data, size_t source_size, unsigned char **dest_data, size_t *dest_size) {
+    // 初始化压缩流
+    z_stream strm;
+    strm.zalloc = Z_NULL;
+    strm.zfree = Z_NULL;
+    strm.opaque = Z_NULL;
+
+    int ret = deflateInit(&strm, Z_BEST_COMPRESSION);
+    if (ret != Z_OK) {
+        fprintf(stderr, "deflateInit failed\n");
+        return -1;
+    }
+
+    // 分配足够大的空间来存储压缩后的数据
+    *dest_data = (unsigned char *)malloc(source_size);
+    if (!*dest_data) {
+        fprintf(stderr, "Failed to allocate memory for destination data\n");
+        deflateEnd(&strm);
+        return -1;
+    }
+
+    // 开始压缩数据
+    strm.avail_in = source_size;
+    strm.next_in = source_data;
+    strm.avail_out = *dest_size;
+    strm.next_out = *dest_data;
+
+    ret = deflate(&strm, Z_FINISH);
+    if (ret != Z_STREAM_END) {
+        fprintf(stderr, "deflate failed\n");
+        free(*dest_data);
+        deflateEnd(&strm);
+        return -1;
+    }
+
+    // 压缩后的数据大小
+    *dest_size = strm.total_out;
+
+    // 结束压缩
+    deflateEnd(&strm);
+
+    return 0;
 }
 
 int web_compile(char *fileList, char *dest)
@@ -87,28 +132,44 @@ int web_compile(char *fileList, char *dest)
 			fprintf(stderr, "Error: Can't read %s\n", file);
 			goto out;
 		}
+
+        unsigned char *dest_data;
+        size_t dest_size = datalen * 2;
+        if (compress_data(data, datalen, &dest_data, &dest_size)) {
+            fprintf(stderr, "Failed to compress data.\n");
+            goto out;
+        }
 		
-		fprintf(webfile, "static unsigned char file%d_data[]={", file_num);
-		for(i=0;i<datalen;i++){
-			fprintf(webfile, "%3u,", (unsigned char)data[i]);
+		fprintf(webfile, "static const unsigned char file%d_data[]={", file_num);
+		for(i=0;i<dest_size;i++){
+			fprintf(webfile, "%3u,", dest_data[i]);
             if(i && i%50==0){
                 fprintf(webfile, "\n");
             }
 		}
 		fprintf(webfile, "0};\n");
-        
-		fprintf(webfile, "static http_file_data_t http_file%d={\n",file_num);
-		fprintf(webfile, "\t.name=\"%s\",\n",file);
-		fprintf(webfile, "\t.datalen=%d,\n",datalen);
+        free(dest_data);
+
+        printf("dest_size:%d\n",(int)dest_size);
+        fprintf(webfile, "static http_file_data_t http_file%d={\n",file_num);
+		fprintf(webfile, "\t.uri=\"/%s\",\n",file);
+        fprintf(webfile, "\t.datalen=%d,\n",(int)dest_size);
 		fprintf(webfile, "\t.data=file%d_data\n",file_num);
+        fprintf(webfile, "};\n");
+        
+		fprintf(webfile, "static httpd_uri_t uri%d={\n",file_num);
+		fprintf(webfile, "\t.uri=\"/%s\",\n",file);
+        fprintf(webfile, "\t.method=HTTP_GET,\n");
+        fprintf(webfile, "\t.handler=html_handler,\n");
+		fprintf(webfile, "\t.user_ctx=&http_file%d\n",file_num);
 		fprintf(webfile, "};\n");
 		
 		file_num++;
 	}
 	fprintf(webfile, "int http_file_num = %d;\n",file_num);
-	fprintf(webfile, "http_file_data_t *http_files[] = {\n");
+	fprintf(webfile, "httpd_uri_t *http_files[] = {\n");
 	for(i=0;i<file_num;i++){
-		fprintf(webfile, "\t%s&http_file%d\n", i?",":"", i);
+		fprintf(webfile, "\t%s&uri%d\n", i?",":"", i);
 	}
 	fprintf(webfile, "};\n");
 	fflush(webfile);
