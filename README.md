@@ -2,6 +2,7 @@
 ### 编译说明
 - 系统环境：Ubuntu 22.04
 - 安装esp-idf：https://docs.espressif.com/projects/esp-idf/zh_CN/release-v5.1/esp32c3/get-started/linux-macos-setup.html
+- 执行`./webcomp.sh`编译网页
 - 执行`idf.py build`编译
 - 执行`idf.py flash`烧录
 ### 功能说明
